@@ -3,8 +3,8 @@ module ActiveRecord
     class Association
       undef :build_record
 
-      def build_record(attributes, options)
-        reflection.build_association(attributes, options) do |record|
+      def build_record(attributes)
+        reflection.build_association(attributes) do |record|
           the_scope = (ActiveRecord::VERSION::STRING.to_f >= 5.2 ? scope_for_create : create_scope)
           attributes = the_scope.except(*(record.changed - [reflection.foreign_key]))
           record.assign_attributes(attributes, without_protection: true)
@@ -21,32 +21,32 @@ module ActiveRecord
 
       def build(attributes = {}, options = {}, &block)
         if attributes.is_a?(Array)
-          attributes.collect { |attr| build(attr, options, &block) }
+          attributes.collect { |attr| build(attr, &block) }
         else
-          add_to_target(build_record(attributes, options)) do |record|
+          add_to_target(build_record(attributes)) do |record|
             yield(record) if block_given?
           end
         end
       end
 
-      def create(attributes = {}, options = {}, &block)
-        create_record(attributes, options, &block)
+      def create(attributes = {}, &block)
+        create_record(attributes, &block)
       end
 
-      def create!(attributes = {}, options = {}, &block)
-        create_record(attributes, options, true, &block)
+      def create!(attributes = {}, &block)
+        create_record(attributes, true, &block)
       end
 
-      def create_record(attributes, options, raise = false, &block)
+      def create_record(attributes, raise = false, &block)
         unless owner.persisted?
           raise ActiveRecord::RecordNotSaved, "You cannot call create unless the parent is saved"
         end
 
         if attributes.is_a?(Array)
-          attributes.collect { |attr| create_record(attr, options, raise, &block) }
+          attributes.collect { |attr| create_record(attr, raise, &block) }
         else
           transaction do
-            add_to_target(build_record(attributes, options)) do |record|
+            add_to_target(build_record(attributes)) do |record|
               yield(record) if block_given?
               insert_record(record, true, raise)
             end
@@ -61,17 +61,17 @@ module ActiveRecord
       undef :create
       undef :create!
 
-      def build(attributes = {}, options = {}, &block)
-        @association.build(attributes, options, &block)
+      def build(attributes = {}, &block)
+        @association.build(attributes, &block)
       end
       alias_method :new, :build
 
-      def create(attributes = {}, options = {}, &block)
-        @association.create(attributes, options, &block)
+      def create(attributes = {}, &block)
+        @association.create(attributes, &block)
       end
 
-      def create!(attributes = {}, options = {}, &block)
-        @association.create!(attributes, options, &block)
+      def create!(attributes = {}, &block)
+        @association.create!(attributes, &block)
       end
     end
 
@@ -80,7 +80,7 @@ module ActiveRecord
 
       private
 
-        def build_record(attributes, options={})
+        def build_record(attributes)
           inverse = source_reflection.inverse_of
           target = through_association.target
 
@@ -88,7 +88,7 @@ module ActiveRecord
             attributes[inverse.foreign_key] = target.id
           end
 
-          super(attributes, options)
+          super(attributes)
         end
     end
 
@@ -96,10 +96,10 @@ module ActiveRecord
       undef :build_record
       undef :options_for_through_record if respond_to?(:options_for_through_record, false)
 
-      def build_record(attributes, options = {})
+      def build_record(attributes)
         ensure_not_nested
 
-        record = super(attributes, options)
+        record = super(attributes)
 
         inverse = source_reflection.inverse_of
         if inverse
@@ -125,23 +125,23 @@ module ActiveRecord
       undef :create!
       undef :build
 
-      def create(attributes = {}, options = {}, &block)
-        create_record(attributes, options, &block)
+      def create(attributes = {}, &block)
+        create_record(attributes, &block)
       end
 
-      def create!(attributes = {}, options = {}, &block)
-        create_record(attributes, options, true, &block)
+      def create!(attributes = {}, &block)
+        create_record(attributes, true, &block)
       end
 
-      def build(attributes = {}, options = {})
-        record = build_record(attributes, options)
+      def build(attributes = {})
+        record = build_record(attributes)
         yield(record) if block_given?
         set_new_record(record)
         record
       end
 
-      def create_record(attributes, options = {}, raise_error = false)
-        record = build_record(attributes, options)
+      def create_record(attributes, raise_error = false)
+        record = build_record(attributes)
         yield(record) if block_given?
         saved = record.save
         set_new_record(record)
